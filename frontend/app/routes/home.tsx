@@ -18,7 +18,8 @@ import type {
   ScheduleChangeResponse,
   SimpleRequest,
 } from "~/types";
-import { Button, Modal } from "antd";
+import { Button, Modal, Input } from "antd";
+import { p } from "node_modules/@react-router/dev/dist/routes-DHIOx0R9";
 
 export function meta() {
   return [
@@ -35,21 +36,21 @@ type PageText = {
   scheduleForm: string[];
   userForm: string[];
 };
-const pageText: PageText = {
+const page_text: PageText = {
   headBar: ["Employee Scheduling Dashboard"],
   info: [
     "Weekly Schedule",
     "shifts",
-    "Today's date: 2025-04-04",
+    "Today's date",
     "Employees",
-    "",
+    "People",
     "Total staff members",
     "Scheduling Rules",
-    "max",
+    "days max",
     "balance target",
   ],
-  scheduleForm: [],
-  userForm: [],
+  scheduleForm: ["This Week's Schedule", "DATE", "Employee", "Employee"],
+  userForm: ["Schedule Change Request"],
 };
 export default function Home() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -66,9 +67,31 @@ export default function Home() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [modalText, setModalText] = useState("Content of the modal");
 
+  const [pageText, setPageText] = useState<PageText>(page_text);
   // Get current date and week's Monday and Sunday
   const today = new Date();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [language, setLanguage] = useState("Swedish");
+  const [languageConfirmLoading, setLanguageConfirmLoading] = useState(false);
+  const showModal = () => {
+    setIsModalOpen(true);
+  };
 
+  const handleOk = async () => {
+    setLanguageConfirmLoading(true)
+    const data = await translationChange({
+      request_text: language,
+      page_text: pageText,
+    });
+    console.log(data);
+    setPageText(data.page_text);
+    setLanguageConfirmLoading(false)
+    setIsModalOpen(false);
+  };
+
+  const handleCancel = () => {
+    setIsModalOpen(false);
+  };
   const formatDate = (date: Date): string => {
     return date.toISOString().split("T")[0];
   };
@@ -155,16 +178,11 @@ export default function Home() {
 
     loadData();
   }, []);
-  const handleTranslate = async () => {
-    const data = await translationChange({request_text:'Swedish',page_text:pageText});
-    console.log(data);
-  };
   const handleModelClick = () => {
     setOpenModal(true);
   };
   const handleChangeRequest = async () => {
     if (!changeRequest.trim()) return;
-
     try {
       setRequestLoading(true);
       setError(null);
@@ -175,6 +193,8 @@ export default function Home() {
 
       const response = await processScheduleChange(request);
       setChangeResponse(response);
+
+      setOpenModal(true);
 
       // If the request was approved and changes were applied, refresh the schedules
       if (
@@ -262,23 +282,92 @@ export default function Home() {
 
   return (
     <div className="flex h-full min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div>123</div>
       <div className="flex w-full flex-col">
         <header className="bg-white shadow dark:bg-gray-800">
           <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 lg:px-5">
             <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-              Employee Scheduling Dashboard
+              {pageText.headBar[0]}
             </h1>
           </div>
         </header>
         <Modal
-          title="Title"
+          title="Translate"
+          open={isModalOpen}
+          onOk={handleOk}
+          onCancel={handleCancel}
+          confirmLoading={languageConfirmLoading}
+        >
+          <Input
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          ></Input>
+        </Modal>
+        <Modal
+          title="Analysis result"
           open={openModal}
           onOk={handleApplyChange}
           confirmLoading={confirmLoading}
           onCancel={() => setOpenModal(false)}
         >
-          <p>{modalText}</p>
+          <div className="modal-view">
+            <div className="mt-4">
+              <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-gray-200">
+                {pageText.scheduleForm[0]}
+              </h2>
+              <div className="overflow-hidden rounded-lg bg-white shadow dark:bg-gray-800">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                      >
+                        {pageText.scheduleForm[1]}
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                      >
+                        {pageText.scheduleForm[2]}
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                      >
+                        {pageText.scheduleForm[3] + " ID"}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                    {schedules.length > 0 ? (
+                      schedules.map((schedule) => (
+                        <tr key={schedule.date}>
+                          <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-900 dark:text-gray-200">
+                            {schedule.date}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-500 dark:text-gray-300">
+                            {schedule.employee_name}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-500 dark:text-gray-300">
+                            {schedule.first_line_support}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+                        >
+                          No schedules found for this week
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </Modal>
         <main className="flex-1 p-3">
           {error && (
@@ -289,23 +378,25 @@ export default function Home() {
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <DashboardCard
-              title="Weekly Schedule"
-              value={`${schedules.length} shifts`}
-              description={`Today's date: ${formatDate(today)}`}
+              title={pageText.info[0]}
+              value={`${schedules.length} ${pageText.info[1]}`}
+              description={`${pageText.info[2]}: ${formatDate(today)}`}
               icon="📅"
             />
             <DashboardCard
-              title="Employees"
-              value={employees.length.toString()}
-              description="Total staff members"
+              title={pageText.info[3]}
+              value={employees.length.toString() + ` ${pageText.info[4]}`}
+              description={pageText.info[5]}
               icon="👥"
             />
             <DashboardCard
-              title="Scheduling Rules"
-              value={rules ? `${rules.max_days_per_week} days max` : "N/A"}
+              title={pageText.info[6]}
+              value={
+                rules ? `${rules.max_days_per_week} ${pageText.info[7]}` : "N/A"
+              }
               description={
                 rules
-                  ? `${rules.preferred_balance * 100}% balance target`
+                  ? `${rules.preferred_balance * 100}% ${pageText.info[8]}`
                   : "Loading..."
               }
               icon="📏"
@@ -314,7 +405,7 @@ export default function Home() {
 
           <div className="mt-4">
             <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-gray-200">
-              This Week's Schedule
+              {pageText.scheduleForm[0]}
             </h2>
             <div className="overflow-hidden rounded-lg bg-white shadow dark:bg-gray-800">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -324,19 +415,19 @@ export default function Home() {
                       scope="col"
                       className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                     >
-                      Date
+                      {pageText.scheduleForm[1]}
                     </th>
                     <th
                       scope="col"
                       className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                     >
-                      Employee
+                      {pageText.scheduleForm[2]}
                     </th>
                     <th
                       scope="col"
                       className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                     >
-                      Employee ID
+                      {pageText.scheduleForm[3] + " ID"}
                     </th>
                   </tr>
                 </thead>
@@ -372,7 +463,7 @@ export default function Home() {
 
           <div className="mt-4">
             <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-gray-200">
-              Schedule Change Request
+              {pageText.userForm[0]}
             </h2>
             <div className="overflow-hidden rounded-lg bg-white p-3 shadow dark:bg-gray-800">
               <div className="mb-2">
@@ -399,7 +490,7 @@ export default function Home() {
                 <Button type="primary" onClick={handleModelClick}>
                   open modal
                 </Button>
-                <Button type="primary" onClick={handleTranslate}>
+                <Button type="primary" onClick={() => setIsModalOpen(true)}>
                   translate
                 </Button>
                 <Button type="primary" onClick={test}>
