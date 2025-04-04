@@ -37,6 +37,19 @@ class CategorizeResponse(BaseModel):
     original_query: str = Field(description="The original query text that was analyzed")
     category: str = Field(description="The assigned category", enum=["Change schedule", "Ask question", "Complaint", "Other"])
 
+class PageText(BaseModel):
+    headBar: list[str]
+    info: list[str]
+    scheduleForm: list[str]
+    userForm: list[str]
+
+class TranslateChangeAnalysis(BaseModel):
+    thoughts: str = Field(description="The AI's thought process while analyzing the request")
+    request_text: str = Field(description="The original request text")
+    head_bar: list[str] = Field(description="Translated head bar text")
+    info: list[str] = Field(description="Translated info text")
+    schedule_form: list[str] = Field(description="Translated schedule form text")
+    user_form: list[str] = Field(description="Translated user form text")
 
 # Employee Model
 class Employee(BaseModel):
@@ -45,7 +58,6 @@ class Employee(BaseModel):
     first_line_support_count: int = 0
     known_absences: list[str] = Field(default_factory=list)  # ISO format dates
     metadata: dict[str, Any] = Field(default_factory=dict)
-
 
 # Schedule Model
 class Schedule(BaseModel):
@@ -63,6 +75,14 @@ class Rules(BaseModel):
 class MessageResponse(BaseModel):
     message: str
 
+class TranslationChangeRequest(BaseModel):
+    request_text: str  # e.g., "en" for English, "es" for Spanish
+    page_text: PageText
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+class TranslationChangeResponse(BaseModel):
+    request_text: str
+    page_text: PageText
 
 class ScheduleChangeRequest(BaseModel):
     request_text: str
