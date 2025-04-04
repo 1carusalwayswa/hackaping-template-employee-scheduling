@@ -9,7 +9,9 @@ import type {
   ScheduleChangeRequest,
   ScheduleChangeResponse,
   MessageResponse,
-  TranslationChangeRequest
+  TranslationChangeRequest,
+  SimpleRequest,
+  SimpleResponse
 } from '~/types';
 
 const API_URL = 'http://192.168.159.252:3000/api';
@@ -117,5 +119,10 @@ export const processScheduleChange = async (request: ScheduleChangeRequest): Pro
 
 export const translationChange = async (request: TranslationChangeRequest): Promise<TranslationChangeRequest> => {
   const response = await api.post<TranslationChangeRequest>('/translation-changes', request);
+  return response.data;
+};
+// Schedule Change API calls
+export const processTextRequest = async (request: SimpleRequest): Promise<ScheduleChangeResponse> => {
+  const response = await api.post<ScheduleChangeResponse>('/process-text-request', request);
   return response.data;
 };

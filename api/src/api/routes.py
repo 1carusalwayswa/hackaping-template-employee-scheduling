@@ -5,9 +5,9 @@ from opperai import Opper, trace
 from .clients.scheduling import SchedulingClient
 from .utils import log
 from .models import (
-    Employee, Schedule, Rules,
+    CategorizeResponse, Employee, QuestionResponse, Schedule, Rules,
     ScheduleChangeRequest, ScheduleChangeResponse, ScheduleChangeAnalysis,
-    MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest
+    MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest, SimpleRequest, SimpleResponse
 )
 
 logger = log.get_logger(__name__)
@@ -26,6 +26,27 @@ DbHandle = Annotated[SchedulingClient, Depends(get_db_handle)]
 OpperHandle = Annotated[Opper, Depends(get_opper_handle)]
 
 #### Helper Functions ####
+
+@trace
+def get_catagory_for_text(
+    opper: Opper,
+    request_text: str,
+) -> CategorizeResponse:
+    
+    analysis_result, _ = opper.call(
+        name="categorize_request",
+        instructions="""
+        Categorize the given user request into an appropriate category
+        """,
+        input={
+            "request": request_text,
+        },
+        output_type=CategorizeResponse
+    )
+
+    analysis_result.original_query = request_text
+    logger.info(f"Category analysis: {analysis_result.dict()}")
+    return analysis_result
 
 @trace
 def process_schedule_change(
@@ -57,6 +78,61 @@ def process_schedule_change(
     # Make sure the original query is included in the analysis
     analysis_result.original_query = request_text
     logger.info(f"Schedule change request analysis: {analysis_result.dict()}")
+    return analysis_result
+
+
+@trace
+def respond_to_question(
+    opper: Opper,
+    question: str,
+    employees: List[Dict],
+    current_schedule: List[Dict],
+    rules: Dict
+) -> QuestionResponse:
+    analysis_result, _ = opper.call(
+        name="answer_question",
+        instructions="""
+        Answer the given question using your own knowledge and the data provided. Use a professional and helpfull tone
+        The questions will mainly be about the schedule and emplyees but might cover other topics
+        """,
+        input={
+            "question": question,
+            "employees": employees,
+            "current_schedule": current_schedule,
+            "rules": rules
+        },
+        output_type=QuestionResponse
+    )
+
+    # Make sure the original query is included in the analysis
+    analysis_result.original_query = question
+    return analysis_result
+
+
+@trace
+def handle_other_type_request(
+    opper: Opper,
+    request: str,
+    employees: List[Dict],
+    current_schedule: List[Dict],
+    rules: Dict
+) -> QuestionResponse:
+    analysis_result, _ = opper.call(
+        name="handle_other",
+        instructions="""
+        Try to handle this unknown type of request to the best of your abilities. You can use the provided data or general reasoning
+        """,
+        input={
+            "request": request,
+            "employees": employees,
+            "current_schedule": current_schedule,
+            "rules": rules
+        },
+        output_type=QuestionResponse
+    )
+
+    # Make sure the original query is included in the analysis
+    analysis_result.original_query = request
     return analysis_result
 
 #### Routes ####
@@ -244,6 +320,138 @@ async def update_rules(
 
     rules = db.get_rules()
     return Rules(**rules)
+
+@router.post("/process-text-request", response_model=ScheduleChangeResponse)
+async def process_text_request(request: SimpleRequest, db: DbHandle, opper: OpperHandle):
+
+    r = get_catagory_for_text(opper, request.request)
+    category = r.category
+
+    if category == "Change schedule":
+        return await process_schedule_change_request(
+            ScheduleChangeRequest(
+                request_text=request.request
+            ),
+            db, opper
+        )
+
+    elif category == "Ask question":
+
+        try:
+            employees = db.get_employees()
+            formatted_employees = [
+                {
+                    "name": emp["name"],
+                    "employee_number": emp["employee_number"],
+                    "first_line_support_count": emp["first_line_support_count"],
+                    "known_absences": emp["known_absences"]
+                }
+                for emp in employees
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching employees: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+
+        # Get all schedules
+        try:
+            schedules = db.get_schedules()
+            formatted_schedules = [
+                {
+                    "date": schedule["date"],
+                    "first_line_support": schedule["first_line_support"]
+                }
+                for schedule in schedules
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching schedules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+
+        # Get rules
+        try:
+            rules = db.get_rules()
+        except Exception as e:
+            logger.error(f"Error fetching rules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+
+        r = respond_to_question(opper, request.request, employees, schedules, rules)
+        return ScheduleChangeResponse(
+            request=request.request, 
+            analysis=ScheduleChangeAnalysis(
+                thoughts=r.thoughts,
+                original_query=request.request,
+                changes=[],
+                reason="Reason " + r.response,
+                recommendation="discuss",
+                reasoning=r.reasoning
+            )
+        )
+
+    elif category == "Complaint":
+        pass
+
+    elif category == "Other":
+        try:
+            employees = db.get_employees()
+            formatted_employees = [
+                {
+                    "name": emp["name"],
+                    "employee_number": emp["employee_number"],
+                    "first_line_support_count": emp["first_line_support_count"],
+                    "known_absences": emp["known_absences"]
+                }
+                for emp in employees
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching employees: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+
+        # Get all schedules
+        try:
+            schedules = db.get_schedules()
+            formatted_schedules = [
+                {
+                    "date": schedule["date"],
+                    "first_line_support": schedule["first_line_support"]
+                }
+                for schedule in schedules
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching schedules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+
+        # Get rules
+        try:
+            rules = db.get_rules()
+        except Exception as e:
+            logger.error(f"Error fetching rules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+
+        r = handle_other_type_request(opper, request.request, employees, schedules, rules)
+        return ScheduleChangeResponse(
+            request=request.request, 
+            analysis=ScheduleChangeAnalysis(
+                thoughts=r.thoughts,
+                original_query=request.request,
+                changes=[],
+                reason="Reason " + r.response,
+                recommendation="discuss",
+                reasoning=r.reasoning
+            )
+        )
+
+
+    return ScheduleChangeResponse(
+        request=request.request, 
+        analysis=ScheduleChangeAnalysis(
+            thoughts="T " + r.category,
+            original_query=request.request,
+            changes=[],
+            reason="Reason " + r.category,
+            recommendation="discuss",
+            reasoning="reasoning"
+        )
+    )
+
 
 # Schedule Change Request
 @router.post("/schedule-changes", response_model=ScheduleChangeResponse)
