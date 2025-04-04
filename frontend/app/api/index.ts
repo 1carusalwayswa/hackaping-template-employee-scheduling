@@ -8,10 +8,11 @@ import type {
   RulesUpdateRequest,
   ScheduleChangeRequest,
   ScheduleChangeResponse,
-  MessageResponse
+  MessageResponse,
+  TranslationChangeRequest
 } from '~/types';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://192.168.159.252:3000/api';
 
 // Create request/response logger
 const logRequest = (config: any) => {
@@ -111,5 +112,10 @@ export const updateRules = async (rules: RulesUpdateRequest): Promise<Rules> => 
 // Schedule Change API calls
 export const processScheduleChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
   const response = await api.post<ScheduleChangeResponse>('/schedule-changes', request);
+  return response.data;
+};
+
+export const translationChange = async (request: TranslationChangeRequest): Promise<TranslationChangeRequest> => {
+  const response = await api.post<TranslationChangeRequest>('/translation-changes', request);
   return response.data;
 };

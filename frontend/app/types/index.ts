@@ -51,6 +51,10 @@ export interface ScheduleChangeAnalysis {
   reasoning: string;
 }
 
+export interface TranslationChangeRequest{
+  request_text: string;
+  translate_text:string;
+}
 export interface ScheduleChangeRequest {
   request_text: string;
   metadata?: Record<string, any>;
