@@ -5,8 +5,9 @@ from opperai import Opper, trace
 from .clients.scheduling import SchedulingClient
 from .utils import log
 from .models import (
-    CategorizeResponse, Employee, QuestionResponse, Schedule, Rules,
-    ScheduleChangeRequest, ScheduleChangeResponse, ScheduleChangeAnalysis,
+    CategorizeResponse, Employee, QuestionResponse, Schedule, Rules, PageText,
+    ScheduleChangeRequest, ScheduleChangeResponse, ScheduleChangeAnalysis, 
+    TranslationChangeRequest, TranslationChangeResponse, TranslateChangeAnalysis,
     MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest, SimpleRequest, SimpleResponse
 )
 
@@ -133,6 +134,33 @@ def handle_other_type_request(
 
     # Make sure the original query is included in the analysis
     analysis_result.original_query = request
+    return analysis_result
+
+@trace
+def process_translate_change(
+    opper: Opper,
+    request_text: str,
+    page_text: PageText 
+) -> TranslateChangeAnalysis:
+    """Process a natural language schedule change request."""
+    analysis_result, _ = opper.call(
+        name="translate_change",
+        instructions="""
+        Translate the list head_bar, info, schedule_form, user_form into request specific language.
+        """,
+        input={
+            "request": request_text,
+            "head_bar": page_text.headBar,
+            "info": page_text.info,
+            "schedule_form": page_text.scheduleForm,
+            "user_form": page_text.userForm
+        },
+        output_type=TranslateChangeAnalysis
+    )
+
+    # Make sure the original query is included in the analysis
+    analysis_result.request_text = request_text
+    logger.info(f"Schedule change request analysis: {analysis_result.dict()}")
     return analysis_result
 
 #### Routes ####
@@ -452,6 +480,37 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
         )
     )
 
+
+# Translate Change Request
+@router.post("/translation-changes", response_model=TranslationChangeResponse)
+async def process_translate_change_request(
+    request: TranslationChangeRequest,
+    opper: OpperHandle
+) -> TranslationChangeResponse:
+     # Process the request
+    try:
+        analysis = process_translate_change(
+            opper,
+            request.request_text,
+            request.page_text
+        )
+        logger.info("Completed translate change analysis")
+    except Exception as e:
+        logger.error(f"Error in translate change analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing translate change: {str(e)}") 
+    
+    # Construct a PageText object from analysis
+    page_text = PageText(
+        headBar=analysis.head_bar,
+        info=analysis.info,
+        scheduleForm=analysis.schedule_form,
+        userForm=analysis.user_form
+    )
+    
+    return TranslationChangeResponse(
+        request_text=request.request_text,
+        page_text= page_text
+    )
 
 # Schedule Change Request
 @router.post("/schedule-changes", response_model=ScheduleChangeResponse)
