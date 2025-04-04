@@ -53,8 +53,14 @@ export interface ScheduleChangeAnalysis {
 
 export interface TranslationChangeRequest{
   request_text: string;
-  translate_text:string;
+  page_text:PageText;
 }
+type PageText = {
+  headBar: string[];
+  info: string[];
+  scheduleForm: string[];
+  userForm: string[];
+};
 export interface ScheduleChangeRequest {
   request_text: string;
   metadata?: Record<string, any>;

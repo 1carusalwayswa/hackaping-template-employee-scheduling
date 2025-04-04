@@ -16,6 +16,8 @@ import type {
 
 const API_URL = 'http://192.168.159.252:3000/api';
 
+// const API_URL = 'http://192.168.159.134:3000/api';
+
 // Create request/response logger
 const logRequest = (config: any) => {
   console.log(`Request: ${config.method?.toUpperCase()} ${config.url}`, config.data || '');
@@ -124,5 +126,16 @@ export const translationChange = async (request: TranslationChangeRequest): Prom
 // Schedule Change API calls
 export const processTextRequest = async (request: SimpleRequest): Promise<ScheduleChangeResponse> => {
   const response = await api.post<ScheduleChangeResponse>('/process-text-request', request);
+  return response.data;
+};
+
+// Schedule Change API calls
+export const getDBChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
+  const response = await api.post<ScheduleChangeResponse>('/schedule-changes/simulate', request);
+  return response.data;
+};
+
+export const updateDBChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
+  const response = await api.post<ScheduleChangeResponse>('/schedule-changes/apply', request);
   return response.data;
 };

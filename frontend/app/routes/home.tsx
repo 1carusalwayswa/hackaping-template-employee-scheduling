@@ -5,7 +5,9 @@ import {
   fetchRules,
   processScheduleChange,
   translationChange,
-  processTextRequest
+  processTextRequest,
+  getDBChange,
+  updateDBChange,
 } from "~/api";
 import type {
   Employee,
@@ -14,7 +16,7 @@ import type {
   ScheduleWithEmployee,
   ScheduleChangeRequest,
   ScheduleChangeResponse,
-  SimpleRequest
+  SimpleRequest,
 } from "~/types";
 import { Button, Modal } from "antd";
 
@@ -34,11 +36,17 @@ type PageText = {
   userForm: string[];
 };
 const pageText: PageText = {
-  headBar: ['Employee Scheduling Dashboard'],
+  headBar: ["Employee Scheduling Dashboard"],
   info: [
-    'Weekly Schedule','shifts',"Today's date: 2025-04-04",
-    'Employees','','Total staff members',
-    'Scheduling Rules','max','balance target',
+    "Weekly Schedule",
+    "shifts",
+    "Today's date: 2025-04-04",
+    "Employees",
+    "",
+    "Total staff members",
+    "Scheduling Rules",
+    "max",
+    "balance target",
   ],
   scheduleForm: [],
   userForm: [],
@@ -72,6 +80,43 @@ export default function Home() {
         setOpenModal(false);
       }, 2000);
     } catch (error) {}
+  };
+  const test = async () => {
+    const data = await getDBChange({
+      request_text: changeRequest,
+    });
+    console.log(data);
+    const schedulesData = await fetchSchedules(formatDate(today));
+    console.log("ludun", schedulesData);
+    // Combine schedules with employee names
+    const schedulesWithNames = schedulesData.map((schedule) => {
+      const employee = employees.find(
+        (emp) => emp.employee_number === schedule.first_line_support
+      );
+      return {
+        ...schedule,
+        employee_name: employee ? employee.name : "Unknown Employee",
+      };
+    });
+    setSchedules(schedulesWithNames);
+  };
+  const apply = async () => {
+    const data = await updateDBChange({
+      request_text: changeRequest,
+    });
+    const schedulesData = await fetchSchedules(formatDate(today));
+    console.log("ludun", schedulesData);
+    // Combine schedules with employee names
+    const schedulesWithNames = schedulesData.map((schedule) => {
+      const employee = employees.find(
+        (emp) => emp.employee_number === schedule.first_line_support
+      );
+      return {
+        ...schedule,
+        employee_name: employee ? employee.name : "Unknown Employee",
+      };
+    });
+    setSchedules(schedulesWithNames);
   };
   useEffect(() => {
     const loadData = async () => {
@@ -111,10 +156,7 @@ export default function Home() {
     loadData();
   }, []);
   const handleTranslate = async () => {
-    const data = await translationChange({
-      request_text: "Swedish",
-      translate_text: "I want to eat apples",
-    });
+    const data = await translationChange({request_text:'Swedish',page_text:pageText});
     console.log(data);
   };
   const handleModelClick = () => {
@@ -172,34 +214,37 @@ export default function Home() {
       setError(null);
 
       const request: SimpleRequest = {
-        request: changeRequest
+        request: changeRequest,
       };
 
       const response = await processTextRequest(request);
       setChangeResponse(response);
 
       // If the request was approved and changes were applied, refresh the schedules
-      if (response.analysis.recommendation === 'approve' && 
-          response.analysis.changes && 
-          response.analysis.changes.length > 0) {
-
+      if (
+        response.analysis.recommendation === "approve" &&
+        response.analysis.changes &&
+        response.analysis.changes.length > 0
+      ) {
         // Fetch updated schedules
         const schedulesData = await fetchSchedules(formatDate(today));
 
         // Combine schedules with employee names
-        const schedulesWithNames = schedulesData.map(schedule => {
-          const employee = employees.find(emp => emp.employee_number === schedule.first_line_support);
+        const schedulesWithNames = schedulesData.map((schedule) => {
+          const employee = employees.find(
+            (emp) => emp.employee_number === schedule.first_line_support
+          );
           return {
             ...schedule,
-            employee_name: employee ? employee.name : 'Unknown Employee'
+            employee_name: employee ? employee.name : "Unknown Employee",
           };
         });
 
         setSchedules(schedulesWithNames);
       }
     } catch (err) {
-      console.error('Error processing schedule change:', err);
-      setError('Failed to process schedule change request.');
+      console.error("Error processing schedule change:", err);
+      setError("Failed to process schedule change request.");
     } finally {
       setRequestLoading(false);
     }
@@ -344,7 +389,8 @@ export default function Home() {
                 <button
                   type="button"
                   className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800"
-                  onClick={handleUserTextRequest}
+                  // onClick={handleUserTextRequest}
+                  onClick={handleChangeRequest}
                   disabled={requestLoading || !changeRequest.trim()}
                 >
                   {requestLoading ? "Processing..." : "Submit Request"}
@@ -356,6 +402,13 @@ export default function Home() {
                 <Button type="primary" onClick={handleTranslate}>
                   translate
                 </Button>
+                <Button type="primary" onClick={test}>
+                  test
+                </Button>
+                <Button type="primary" onClick={apply}>
+                  apply
+                </Button>
+
                 {changeResponse &&
                   changeResponse.analysis.recommendation === "approve" && (
                     <div className="flex items-center text-xs text-green-600 dark:text-green-400">
