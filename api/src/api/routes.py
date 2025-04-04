@@ -512,6 +512,97 @@ async def process_translate_change_request(
         page_text= page_text
     )
 
+# Simulate schedule changes without updating the database
+# This endpoint simulates the schedule changes based on AI analysis
+@router.post("/schedule-changes/simulate", response_model=List[Schedule])
+async def simulate_schedule_changes(
+    request: ScheduleChangeRequest,
+    db: DbHandle,
+    opper: OpperHandle
+) -> List[Schedule]:
+    """Simulate schedule changes based on AI analysis without updating the database."""
+    # Get all employees
+    try:
+        employees = db.get_employees()
+        formatted_employees = [
+            {
+                "name": emp["name"],
+                "employee_number": emp["employee_number"],
+                "first_line_support_count": emp["first_line_support_count"],
+                "known_absences": emp["known_absences"]
+            }
+            for emp in employees
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching employees: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+
+    # Get all schedules
+    try:
+        schedules = db.get_schedules()
+        simulated_schedules = [
+            {
+                "date": schedule["date"],
+                "first_line_support": schedule["first_line_support"]
+            }
+            for schedule in schedules
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching schedules: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+
+    # Get rules
+    try:
+        rules = db.get_rules()
+    except Exception as e:
+        logger.error(f"Error fetching rules: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+
+    # Process the request
+    try:
+        analysis = process_schedule_change(
+            opper,
+            request.request_text,
+            formatted_employees,
+            simulated_schedules,
+            rules
+        )
+        logger.info("Completed schedule change analysis")
+    except Exception as e:
+        logger.error(f"Error in schedule change analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing schedule change: {str(e)}")
+
+    # Simulate applying changes to the schedule
+    for change in analysis.changes:
+        target_date = change.target_date
+        suggested_replacement = change.suggested_replacement
+
+        # Find the employee number for the suggested replacement
+        replacement_employee = next(
+            (emp for emp in employees if emp["name"] == suggested_replacement),
+            None
+        )
+
+        if replacement_employee:
+            # Check if the schedule exists for that date
+            existing_schedule = next(
+                (schedule for schedule in simulated_schedules if schedule["date"] == target_date),
+                None
+            )
+
+            if existing_schedule:
+                # Simulate updating the existing schedule
+                existing_schedule["first_line_support"] = replacement_employee["employee_number"]
+            else:
+                # Simulate creating a new schedule
+                simulated_schedules.append({
+                    "date": target_date,
+                    "first_line_support": replacement_employee["employee_number"]
+                })
+
+    # Return the simulated schedules
+    return [Schedule(**schedule) for schedule in simulated_schedules]
+
 # Schedule Change Request
 @router.post("/schedule-changes", response_model=ScheduleChangeResponse)
 async def process_schedule_change_request(
@@ -571,9 +662,75 @@ async def process_schedule_change_request(
         logger.error(f"Error in schedule change analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing schedule change: {str(e)}")
 
+    return ScheduleChangeResponse(
+        request=request.request_text,
+        analysis=analysis
+    )
+
+
+@router.post("/schedule-changes/apply", response_model=MessageResponse)
+async def apply_schedule_changes(
+    request: ScheduleChangeRequest,
+    db: DbHandle,
+    opper: OpperHandle
+) -> MessageResponse:
+    """
+    Apply schedule changes based on AI recommendations.
+    """
+    # Get all employees
+    try:
+        employees = db.get_employees()
+        formatted_employees = [
+            {
+                "name": emp["name"],
+                "employee_number": emp["employee_number"],
+                "first_line_support_count": emp["first_line_support_count"],
+                "known_absences": emp["known_absences"]
+            }
+            for emp in employees
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching employees: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+
+    # Get all schedules
+    try:
+        schedules = db.get_schedules()
+        formatted_schedules = [
+            {
+                "date": schedule["date"],
+                "first_line_support": schedule["first_line_support"]
+            }
+            for schedule in schedules
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching schedules: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+
+    # Get rules
+    try:
+        rules = db.get_rules()
+    except Exception as e:
+        logger.error(f"Error fetching rules: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+
+    # Process the request
+    try:
+        analysis = process_schedule_change(
+            opper,
+            request.request_text,
+            formatted_employees,
+            formatted_schedules,
+            rules
+        )
+        logger.info("Completed schedule change analysis")
+    except Exception as e:
+        logger.error(f"Error in schedule change analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing schedule change: {str(e)}")
+
     # Apply changes to the schedule if recommended
     try:
-        if (analysis.recommendation == "approve"):
+        if analysis.recommendation == "approve":
             for change in analysis.changes:
                 target_date = change.target_date
                 suggested_replacement = change.suggested_replacement
@@ -609,10 +766,11 @@ async def process_schedule_change_request(
                             f"New schedule created: Date {target_date}, "
                             f"Employee: {suggested_replacement}"
                         )
+        else:
+            logger.info(f"Schedule change recommendation: {analysis.recommendation}")
+            return MessageResponse(message=f"Schedule changes not applied. Recommendation: {analysis.recommendation}")
     except Exception as e:
         logger.error(f"Error applying schedule changes: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error applying schedule changes: {str(e)}")
 
-    return ScheduleChangeResponse(
-        request=request.request_text,
-        analysis=analysis
-    )
+    return MessageResponse(message="Schedule changes successfully applied.")
