@@ -5,7 +5,7 @@ from opperai import Opper, trace
 from .clients.scheduling import SchedulingClient
 from .utils import log
 from .models import (
-    CategorizeResponse, Employee, Schedule, Rules,
+    CategorizeResponse, Employee, Schedule, Rules, ScheduleChange,
     ScheduleChangeRequest, TextQuerryResponse, ScheduleChangeAnalysis,
     MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest, SimpleRequest,
     ComplaintResponse, OtherResponse, QuestionResponse,
@@ -593,16 +593,18 @@ async def process_translate_change_request(
         page_text= page_text
     )
 
+# TEST
 # Simulate schedule changes without updating the database
 # This endpoint simulates the schedule changes based on AI analysis
 @router.post("/schedule-changes/simulate", response_model=List[Schedule])
 async def simulate_schedule_changes(
-    request: ScheduleChangeRequest,
+    request: List[ScheduleChange],
     db: DbHandle,
     opper: OpperHandle
 ) -> List[Schedule]:
     """Simulate schedule changes based on AI analysis without updating the database."""
     # Get all employees
+
     try:
         employees = db.get_employees()
         formatted_employees = [
@@ -639,22 +641,9 @@ async def simulate_schedule_changes(
         logger.error(f"Error fetching rules: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
 
-    # Process the request
-    try:
-        analysis = process_schedule_change(
-            opper,
-            request.request_text,
-            formatted_employees,
-            simulated_schedules,
-            rules
-        )
-        logger.info("Completed schedule change analysis")
-    except Exception as e:
-        logger.error(f"Error in schedule change analysis: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing schedule change: {str(e)}")
-
     # Simulate applying changes to the schedule
-    for change in analysis.changes:
+    for change in request:
+        logger.info(f"Applying change {change}")
         target_date = change.target_date
         suggested_replacement = change.suggested_replacement
 
@@ -664,6 +653,8 @@ async def simulate_schedule_changes(
             None
         )
 
+        logger.info(f"Selected replacment employee {replacement_employee}")
+
         if replacement_employee:
             # Check if the schedule exists for that date
             existing_schedule = next(
@@ -671,19 +662,26 @@ async def simulate_schedule_changes(
                 None
             )
 
+            logger.info(f"Schedule exists: {existing_schedule}")
+
+
             if existing_schedule:
                 # Simulate updating the existing schedule
                 existing_schedule["first_line_support"] = replacement_employee["employee_number"]
+                logger.info("Added to existing schedule")
             else:
                 # Simulate creating a new schedule
                 simulated_schedules.append({
                     "date": target_date,
                     "first_line_support": replacement_employee["employee_number"]
                 })
+                logger.info(f"Added new schedule: {simulated_schedules}")
 
     # Return the simulated schedules
-    return [Schedule(**schedule) for schedule in simulated_schedules]
+    logger.info(f"Sending back: {simulated_schedules}")
+    return simulated_schedules #[Schedule(**schedule) for schedule in simulated_schedules]
 
+# REQUEST
 # Schedule Change Request
 @router.post("/schedule-changes", response_model=TextQuerryResponse)
 async def process_schedule_change_request(
@@ -748,26 +746,26 @@ async def process_schedule_change_request(
         analysis=analysis
     )
 
-
+# APPLY
 @router.post("/schedule-changes/apply", response_model=MessageResponse)
 async def apply_schedule_changes(
-    analysis: ScheduleChangeAnalysis,
+    changes: List[ScheduleChange],
     db: DbHandle
 ) -> MessageResponse:
     """
     Apply schedule changes based on the provided AI analysis.
     """
-    # Check if the recommendation is "approve"
-    if analysis.recommendation != "approve":
-        return MessageResponse(message=f"Schedule changes not applied. Recommendation: {analysis.recommendation}")
-
     # Apply changes to the schedule
-    for change in analysis.changes:
+    for change in changes:
         target_date = change.target_date
         suggested_replacement = change.suggested_replacement
 
         # Find the employee number for the suggested replacement
-        replacement_employee = db.get_employee_by_name(suggested_replacement)
+        replacement_employee = None
+        for e in db.get_employees():
+            if e["name"] == change.suggested_replacement:
+                replacement_employee = e
+
         if not replacement_employee:
             raise HTTPException(status_code=404, detail=f"Employee {suggested_replacement} not found")
 

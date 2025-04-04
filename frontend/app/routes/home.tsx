@@ -105,16 +105,14 @@ export default function Home() {
     } catch (error) {}
   };
   const test = async () => {
-    const data = await getDBChange({
-      request_text: changeRequest,
-    });
+    const data = await getDBChange();
     console.log(data);
     const schedulesData = await fetchSchedules(formatDate(today));
     console.log("ludun", schedulesData);
     // Combine schedules with employee names
     const schedulesWithNames = schedulesData.map((schedule) => {
       const employee = employees.find(
-        (emp) => emp.employee_number === schedule.first_line_support
+        (emp: any) => emp.employee_number === schedule.first_line_support
       );
       return {
         ...schedule,
@@ -521,7 +519,7 @@ export default function Home() {
               </div>
             </div>
 
-            {changeResponse && changeResponse.analysis.type === "schedulechange" && (
+            {changeResponse && (
               <div className="mt-2 rounded-lg bg-white p-3 shadow dark:bg-gray-800">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
                   Request Analysis
@@ -588,7 +586,7 @@ export default function Home() {
               </div>
             )}
 
-            {changeResponse && changeResponse.analysis.type === "schedulechange" && (
+            {/* {changeResponse && changeResponse.analysis.type === "schedulechange" && (
               <div className="mt-2 rounded-lg bg-white p-3 shadow dark:bg-gray-800">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
                   Request Analysis
@@ -653,7 +651,7 @@ export default function Home() {
                   </div>
                 </dl>
               </div>
-            )}
+            )} */}
 
           </div>
         </main>

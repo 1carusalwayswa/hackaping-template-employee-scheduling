@@ -43,6 +43,7 @@ class ScheduleChange(BaseModel):
 
 # Schedule Change Request Analysis
 class ScheduleChangeAnalysis(BaseModel):
+    type: Literal["change"] = "change"
     thoughts: str = Field(description="The AI's thought process while analyzing the request")
     original_query: str = Field(description="The original query text that was analyzed")
     changes: list[ScheduleChange] = Field(description="The suggested changes to the schedule")

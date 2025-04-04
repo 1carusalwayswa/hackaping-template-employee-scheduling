@@ -11,10 +11,13 @@ import type {
   MessageResponse,
   TranslationChangeRequest,
   SimpleRequest,
-  SimpleResponse
+  SimpleResponse,
+  ScheduleChange
 } from '~/types';
 
 const API_URL = 'http://localhost:3000/api';
+
+var changeProposal: ScheduleChange[];
 
 // const API_URL = 'http://192.168.159.134:3000/api';
 
@@ -126,16 +129,23 @@ export const translationChange = async (request: TranslationChangeRequest): Prom
 // Schedule Change API calls
 export const processTextRequest = async (request: SimpleRequest): Promise<ScheduleChangeResponse> => {
   const response = await api.post<ScheduleChangeResponse>('/process-text-request', request);
-  return response.data;
+  const data = response.data;
+
+  if (data.analysis.type == "change") {
+    changeProposal = data.analysis.changes;
+  }
+
+  return data;
 };
 
 // Schedule Change API calls
-export const getDBChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
-  const response = await api.post<ScheduleChangeResponse>('/schedule-changes/simulate', request);
+export const getDBChange = async (): Promise<ScheduleChangeResponse> => {
+  
+  const response = await api.post<ScheduleChange[]>('/schedule-changes/simulate', changeProposal);
   return response.data;
 };
 
-export const updateDBChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
-  const response = await api.post<ScheduleChangeResponse>('/schedule-changes/apply', request);
+export const updateDBChange = async (): Promise<ScheduleChangeResponse> => {
+  const response = await api.post<ScheduleChangeResponse>('/schedule-changes/apply', changeProposal);
   return response.data;
 };

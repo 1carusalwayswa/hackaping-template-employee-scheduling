@@ -66,7 +66,7 @@ interface ComplaintResponse extends BaseResponse {
 }
 
 // Schedule change submodel
-interface ScheduleChange {
+export interface ScheduleChange {
   employee_name: string; // Name of the originally scheduled employee
   target_date: string; // Format: YYYY-MM-DD
   suggested_replacement: string; // Suggested replacement employee
