@@ -751,111 +751,36 @@ async def process_schedule_change_request(
 
 @router.post("/schedule-changes/apply", response_model=MessageResponse)
 async def apply_schedule_changes(
-    request: ScheduleChangeRequest,
-    db: DbHandle,
-    opper: OpperHandle
+    analysis: ScheduleChangeAnalysis,
+    db: DbHandle
 ) -> MessageResponse:
     """
-    Apply schedule changes based on AI recommendations.
+    Apply schedule changes based on the provided AI analysis.
     """
-    # Get all employees
-    try:
-        employees = db.get_employees()
-        formatted_employees = [
-            {
-                "name": emp["name"],
-                "employee_number": emp["employee_number"],
-                "first_line_support_count": emp["first_line_support_count"],
-                "known_absences": emp["known_absences"]
-            }
-            for emp in employees
-        ]
-    except Exception as e:
-        logger.error(f"Error fetching employees: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+    # Check if the recommendation is "approve"
+    if analysis.recommendation != "approve":
+        return MessageResponse(message=f"Schedule changes not applied. Recommendation: {analysis.recommendation}")
 
-    # Get all schedules
-    try:
-        schedules = db.get_schedules()
-        formatted_schedules = [
-            {
-                "date": schedule["date"],
-                "first_line_support": schedule["first_line_support"]
-            }
-            for schedule in schedules
-        ]
-    except Exception as e:
-        logger.error(f"Error fetching schedules: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+    # Apply changes to the schedule
+    for change in analysis.changes:
+        target_date = change.target_date
+        suggested_replacement = change.suggested_replacement
 
-    # Get rules
-    try:
-        rules = db.get_rules()
-    except Exception as e:
-        logger.error(f"Error fetching rules: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+        # Find the employee number for the suggested replacement
+        replacement_employee = db.get_employee_by_name(suggested_replacement)
+        if not replacement_employee:
+            raise HTTPException(status_code=404, detail=f"Employee {suggested_replacement} not found")
 
-    # Process the request
-    try:
-        analysis = process_schedule_change(
-            opper,
-            request.request_text,
-            formatted_employees,
-            formatted_schedules,
-            rules
-        )
-        logger.info("Completed schedule change analysis")
-    except Exception as e:
-        logger.error(f"Error in schedule change analysis: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing schedule change: {str(e)}")
+        # Check if the schedule exists for that date
+        existing_schedule = db.get_schedule(target_date)
 
-    # Apply changes to the schedule if recommended
-    try:
-        if analysis.recommendation == "approve":
-            for change in analysis.changes:
-                target_date = change.target_date
-                suggested_replacement = change.suggested_replacement
-
-                # Find the employee number for the suggested replacement
-                replacement_employee = next(
-                    (emp for emp in employees if emp["name"] == suggested_replacement),
-                    None
-                )
-
-                if replacement_employee:
-                    # Check if the schedule exists for that date
-                    existing_schedule = db.get_schedule(target_date)
-
-                    if existing_schedule:
-                        # Update the existing schedule
-                        success = db.update_schedule(
-                            target_date,
-                            replacement_employee["employee_number"]
-                        )
-                        logger.info(
-                            f"Schedule change applied: Date {target_date}, "
-                            f"New employee: {suggested_replacement}, "
-                            f"Success: {success}"
-                        )
-                    else:
-                        # Create a new schedule if it doesn't exist
-                        db.create_schedule(
-                            target_date,
-                            replacement_employee["employee_number"]
-                        )
-                        logger.info(
-                            f"New schedule created: Date {target_date}, "
-                            f"Employee: {suggested_replacement}"
-                        )
+        if existing_schedule:
+            # Update the existing schedule
+            success = db.update_schedule(target_date, replacement_employee["employee_number"])
+            if not success:
+                raise HTTPException(status_code=500, detail=f"Failed to update schedule for {target_date}")
         else:
-            logger.info(f"Schedule change recommendation: {analysis.recommendation}")
-            return MessageResponse(message=f"Schedule changes not applied. Recommendation: {analysis.recommendation}")
-    except Exception as e:
-        logger.error(f"Error applying schedule changes: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error applying schedule changes: {str(e)}")
+            # Create a new schedule
+            db.create_schedule(target_date, replacement_employee["employee_number"])
 
-    return TextQuerryResponse(
-        request=request.request_text,
-        analysis=analysis
-    )
     return MessageResponse(message="Schedule changes successfully applied.")
