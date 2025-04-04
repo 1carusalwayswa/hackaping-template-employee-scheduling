@@ -1,6 +1,20 @@
 from pydantic import BaseModel, Field
 from typing import Any
 
+class SimpleRequest(BaseModel):
+    request: str
+
+class SimpleResponse(BaseModel):
+    request: str
+    response: str
+
+# Schedule Change Request Analysis
+class QuestionResponse(BaseModel):
+    thoughts: str = Field(description="The AI's thought process while analyzing the request")
+    original_query: str = Field(description="The original query text that was analyzed")
+    response: str = Field(description="The response to the question")
+    reasoning: str = Field(description="Detailed explanation for the response")
+
 class ScheduleChange(BaseModel):
     employee_name: str = Field(description="The name of the employee originally scheduled for the date")
     target_date: str = Field(description="The date of the requested change in YYYY-MM-DD format")
@@ -17,6 +31,11 @@ class ScheduleChangeAnalysis(BaseModel):
         enum=["approve", "deny", "discuss"]
     )
     reasoning: str = Field(description="Detailed explanation for the recommendation")
+
+class CategorizeResponse(BaseModel):
+    thoughts: str = Field(description="The AI's thought process while analyzing the request")
+    original_query: str = Field(description="The original query text that was analyzed")
+    category: str = Field(description="The assigned category", enum=["Change schedule", "Ask question", "Complaint", "Other"])
 
 
 # Employee Model

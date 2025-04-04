@@ -8,7 +8,9 @@ import type {
   RulesUpdateRequest,
   ScheduleChangeRequest,
   ScheduleChangeResponse,
-  MessageResponse
+  MessageResponse,
+  SimpleRequest,
+  SimpleResponse
 } from '~/types';
 
 const API_URL = 'http://localhost:3000/api';
@@ -111,5 +113,11 @@ export const updateRules = async (rules: RulesUpdateRequest): Promise<Rules> => 
 // Schedule Change API calls
 export const processScheduleChange = async (request: ScheduleChangeRequest): Promise<ScheduleChangeResponse> => {
   const response = await api.post<ScheduleChangeResponse>('/schedule-changes', request);
+  return response.data;
+};
+
+// Schedule Change API calls
+export const processTextRequest = async (request: SimpleRequest): Promise<ScheduleChangeResponse> => {
+  const response = await api.post<ScheduleChangeResponse>('/process-text-request', request);
   return response.data;
 };

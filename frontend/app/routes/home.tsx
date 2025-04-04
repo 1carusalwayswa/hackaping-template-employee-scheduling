@@ -3,7 +3,8 @@ import {
   fetchEmployees,
   fetchSchedules,
   fetchRules,
-  processScheduleChange
+  processScheduleChange,
+  processTextRequest
 } from "~/api";
 import type {
   Employee,
@@ -11,7 +12,8 @@ import type {
   Rules,
   ScheduleWithEmployee,
   ScheduleChangeRequest,
-  ScheduleChangeResponse
+  ScheduleChangeResponse,
+  SimpleRequest
 } from "~/types";
 
 export function meta() {
@@ -86,6 +88,47 @@ export default function Home() {
       };
 
       const response = await processScheduleChange(request);
+      setChangeResponse(response);
+
+      // If the request was approved and changes were applied, refresh the schedules
+      if (response.analysis.recommendation === 'approve' && 
+          response.analysis.changes && 
+          response.analysis.changes.length > 0) {
+
+        // Fetch updated schedules
+        const schedulesData = await fetchSchedules(formatDate(today));
+
+        // Combine schedules with employee names
+        const schedulesWithNames = schedulesData.map(schedule => {
+          const employee = employees.find(emp => emp.employee_number === schedule.first_line_support);
+          return {
+            ...schedule,
+            employee_name: employee ? employee.name : 'Unknown Employee'
+          };
+        });
+
+        setSchedules(schedulesWithNames);
+      }
+    } catch (err) {
+      console.error('Error processing schedule change:', err);
+      setError('Failed to process schedule change request.');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  const handleUserTextRequest = async () => {
+    if (!changeRequest.trim()) return;
+
+    try {
+      setRequestLoading(true);
+      setError(null);
+
+      const request: SimpleRequest = {
+        request: changeRequest
+      };
+
+      const response = await processTextRequest(request);
       setChangeResponse(response);
 
       // If the request was approved and changes were applied, refresh the schedules
@@ -221,7 +264,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800"
-                  onClick={handleChangeRequest}
+                  onClick={handleUserTextRequest}
                   disabled={requestLoading || !changeRequest.trim()}
                 >
                   {requestLoading ? 'Processing...' : 'Submit Request'}

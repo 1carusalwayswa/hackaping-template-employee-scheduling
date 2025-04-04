@@ -78,3 +78,11 @@ export interface UIState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface SimpleRequest {
+  request: string
+}
+
+export interface SimpleResponse {
+  request: string
+}
