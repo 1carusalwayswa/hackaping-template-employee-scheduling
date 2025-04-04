@@ -854,8 +854,4 @@ async def apply_schedule_changes(
         logger.error(f"Error applying schedule changes: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error applying schedule changes: {str(e)}")
 
-    return TextQuerryResponse(
-        request=request.request_text,
-        analysis=analysis
-    )
     return MessageResponse(message="Schedule changes successfully applied.")
