@@ -491,7 +491,7 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
                 thoughts=r.thoughts,
                 original_query=request.request,
                 changes=[],
-                reason="Reason " + r.user_response + " " + "Solution: " + r.solution_proposal,
+                reason="Reason " + r.response + " " + "Solution: " + r.solution_proposal,
                 recommendation="discuss",
                 reasoning=r.reasoning,
                 response = "response-text"
