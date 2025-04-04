@@ -36,6 +36,23 @@ type PageText = {
   scheduleForm: string[];
   userForm: string[];
 };
+const page_text_ori: PageText = {
+  headBar: ["Employee Scheduling Dashboard"],
+  info: [
+    "Weekly Schedule",
+    "shifts",
+    "Today's date",
+    "Employees",
+    "People",
+    "Total staff members",
+    "Scheduling Rules",
+    "days max",
+    "balance target",
+  ],
+  scheduleForm: ["This Week's Schedule", "DATE", "Employee", "Employee"],
+  userForm: ["Schedule Change Request", "Submit Request", "Processing..." ,"Translate"]
+};
+
 const page_text: PageText = {
   headBar: ["Employee Scheduling Dashboard"],
   info: [
@@ -50,7 +67,7 @@ const page_text: PageText = {
     "balance target",
   ],
   scheduleForm: ["This Week's Schedule", "DATE", "Employee", "Employee"],
-  userForm: ["Schedule Change Request"],
+  userForm: ["Schedule Change Request", "Submit Request", "Processing..." ,"Translate"]
 };
 export default function Home() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -81,7 +98,7 @@ export default function Home() {
     setLanguageConfirmLoading(true)
     const data = await translationChange({
       request_text: language,
-      page_text: pageText,
+      page_text: page_text_ori,
     });
     console.log(data);
     setPageText(data.page_text);
@@ -289,7 +306,7 @@ export default function Home() {
           </div>
         </header>
         <Modal
-          title="Translate"
+          title={pageText.userForm[1]}
           open={isModalOpen}
           onOk={handleOk}
           onCancel={handleCancel}
@@ -482,14 +499,14 @@ export default function Home() {
                   //onClick={handleChangeRequest}
                   disabled={requestLoading || !changeRequest.trim()}
                 >
-                  {requestLoading ? "Processing..." : "Submit Request"}
+                  {requestLoading ? pageText.userForm[2] : pageText.userForm[1]}
                 </button>
 
                 <Button type="primary" onClick={handleModelClick}>
                   open modal
                 </Button>
                 <Button type="primary" onClick={() => setIsModalOpen(true)}>
-                  translate
+                  {pageText.userForm[3]} 
                 </Button>
                 <Button type="primary" onClick={test}>
                   test
