@@ -36,20 +36,67 @@ export interface RulesUpdateRequest {
   preferred_balance?: number;
 }
 
-export interface ScheduleChange {
-  target_date: string;
-  suggested_replacement: string;
+// export interface ScheduleChange {
+//   target_date: string;
+//   suggested_replacement: string;
+// }
+
+
+// LLM communication types
+// Base structure for all responses
+interface BaseResponse {
+  thoughts: string; // The AI's thought process while analyzing the request
+  original_query: string; // The original query text that was analyzed
+  response: string; // The response to the question
+  reasoning: string; // Detailed explanation for the response
 }
 
-// Schedule Change Types
-export interface ScheduleChangeAnalysis {
-  thoughts: string;
-  original_query: string;
-  reason?: string;
-  changes: ScheduleChange[];
-  recommendation: 'approve' | 'deny' | 'discuss';
-  reasoning: string;
+// Specific response types
+interface QuestionResponse extends BaseResponse {
+  type: "question";
 }
+
+interface OtherResponse extends BaseResponse {
+  type: "other";
+}
+
+interface ComplaintResponse extends BaseResponse {
+  type: "complaint";
+  solution_proposal: string; // Proposed solution
+}
+
+// Schedule change submodel
+interface ScheduleChange {
+  employee_name: string; // Name of the originally scheduled employee
+  target_date: string; // Format: YYYY-MM-DD
+  suggested_replacement: string; // Suggested replacement employee
+}
+
+// Schedule change analysis response
+interface ScheduleChangeAnalysis extends BaseResponse {
+  type: "schedulechange";
+  changes: ScheduleChange[];
+  recommendation: "approve" | "deny" | "discuss"; // Recommendation outcome
+}
+
+// Union type for all possible response types
+type AIResponse =
+  | QuestionResponse
+  | OtherResponse
+  | ComplaintResponse
+  | ScheduleChangeAnalysis;
+
+
+
+// Schedule Change Types
+// export interface ScheduleChangeAnalysis {
+//   thoughts: string;
+//   original_query: string;
+//   reason?: string;
+//   changes: ScheduleChange[];
+//   recommendation: 'approve' | 'deny' | 'discuss';
+//   reasoning: string;
+// }
 
 export interface ScheduleChangeRequest {
   request_text: string;
@@ -58,7 +105,7 @@ export interface ScheduleChangeRequest {
 
 export interface ScheduleChangeResponse {
   request: string;
-  analysis: ScheduleChangeAnalysis;
+  analysis: AIResponse;
 }
 
 // API Response Types

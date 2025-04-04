@@ -1,19 +1,40 @@
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Literal, Union
 
 class SimpleRequest(BaseModel):
     request: str
 
-class SimpleResponse(BaseModel):
-    request: str
-    response: str
+# Response from LLM querry models
 
-# Schedule Change Request Analysis
+# class BaseAnalysis(BaseModel):
+#     thoughts: str = Field(description="The AI's thought process while analyzing the request")
+#     original_query: str = Field(description="The original query text that was analyzed")
+#     response: str = Field(description="The response to the question")
+#     reasoning: str = Field(description="Detailed explanation for the response")
+
 class QuestionResponse(BaseModel):
+    type: Literal["question"] = "question"
     thoughts: str = Field(description="The AI's thought process while analyzing the request")
     original_query: str = Field(description="The original query text that was analyzed")
     response: str = Field(description="The response to the question")
     reasoning: str = Field(description="Detailed explanation for the response")
+
+class OtherResponse(BaseModel):
+    type: Literal["other"] = "other"
+    thoughts: str = Field(description="The AI's thought process while analyzing the request")
+    original_query: str = Field(description="The original query text that was analyzed")
+    response: str = Field(description="The response to the question")
+    reasoning: str = Field(description="Detailed explanation for the response")
+
+class ComplaintResponse(BaseModel):
+    type: Literal["complaint"] = "complaint"
+    solution_proposal: str = Field(description="Proposed solution")
+    thoughts: str = Field(description="The AI's thought process while analyzing the request")
+    original_query: str = Field(description="The original query text that was analyzed")
+    response: str = Field(description="The response to the question")
+    reasoning: str = Field(description="Detailed explanation for the response")
+
+
 
 class ScheduleChange(BaseModel):
     employee_name: str = Field(description="The name of the employee originally scheduled for the date")
@@ -69,9 +90,9 @@ class ScheduleChangeRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class ScheduleChangeResponse(BaseModel):
+class TextQuerryResponse(BaseModel):
     request: str
-    analysis: ScheduleChangeAnalysis
+    analysis: Union[ScheduleChangeAnalysis]
 
 
 class EmployeeCreateRequest(BaseModel):

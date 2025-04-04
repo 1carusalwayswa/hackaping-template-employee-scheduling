@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Path, Depends, HTTPException, Request
-from typing import Annotated, List, Dict, Optional
+from typing import Annotated, List, Dict, Optional, Union
 
 from opperai import Opper, trace
 from .clients.scheduling import SchedulingClient
 from .utils import log
 from .models import (
-    CategorizeResponse, Employee, QuestionResponse, Schedule, Rules,
-    ScheduleChangeRequest, ScheduleChangeResponse, ScheduleChangeAnalysis,
-    MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest, SimpleRequest, SimpleResponse
+    CategorizeResponse, Employee, Schedule, Rules,
+    ScheduleChangeRequest, TextQuerryResponse, ScheduleChangeAnalysis,
+    MessageResponse, EmployeeCreateRequest, ScheduleCreateRequest, RulesUpdateRequest, SimpleRequest,
+    ComplaintResponse, OtherResponse, QuestionResponse
 )
 
 logger = log.get_logger(__name__)
@@ -133,6 +134,35 @@ def handle_other_type_request(
 
     # Make sure the original query is included in the analysis
     analysis_result.original_query = request
+    return analysis_result
+
+@trace
+def handle_complaint(
+    opper: Opper,
+    complaint: str,
+    employees: List[Dict],
+    current_schedule: List[Dict],
+    rules: Dict
+) -> QuestionResponse:
+    analysis_result, _ = opper.call(
+        name="handle_complaint",
+        instructions="""
+        Handle the complaint of a user of a employee scheduling system
+        Use the provided data to gain a deeper understanding of the problem and possible solutions
+        Provide a respectfull and understanding response for the user and a solution proposal to be evaluated by a manager or similar
+        Do not make any promisses that might not be possible
+        """,
+        input={
+            "complaint": complaint,
+            "employees": employees,
+            "current_schedule": current_schedule,
+            "rules": rules
+        },
+        output_type=ComplaintResponse
+    )
+
+    # Make sure the original query is included in the analysis
+    analysis_result.original_query = complaint
     return analysis_result
 
 #### Routes ####
@@ -321,11 +351,12 @@ async def update_rules(
     rules = db.get_rules()
     return Rules(**rules)
 
-@router.post("/process-text-request", response_model=ScheduleChangeResponse)
+@router.post("/process-text-request", 
+             response_model=TextQuerryResponse) #Union[ScheduleChangeAnalysis, ComplaintResponse, OtherResponse, QuestionResponse])
 async def process_text_request(request: SimpleRequest, db: DbHandle, opper: OpperHandle):
 
-    r = get_catagory_for_text(opper, request.request)
-    category = r.category
+    categoryResponse = get_catagory_for_text(opper, request.request)
+    category = categoryResponse.category
 
     if category == "Change schedule":
         return await process_schedule_change_request(
@@ -374,7 +405,7 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
             raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
 
         r = respond_to_question(opper, request.request, employees, schedules, rules)
-        return ScheduleChangeResponse(
+        return TextQuerryResponse(
             request=request.request, 
             analysis=ScheduleChangeAnalysis(
                 thoughts=r.thoughts,
@@ -387,7 +418,56 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
         )
 
     elif category == "Complaint":
-        pass
+        
+        try:
+            employees = db.get_employees()
+            formatted_employees = [
+                {
+                    "name": emp["name"],
+                    "employee_number": emp["employee_number"],
+                    "first_line_support_count": emp["first_line_support_count"],
+                    "known_absences": emp["known_absences"]
+                }
+                for emp in employees
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching employees: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching employees: {str(e)}")
+
+        # Get all schedules
+        try:
+            schedules = db.get_schedules()
+            formatted_schedules = [
+                {
+                    "date": schedule["date"],
+                    "first_line_support": schedule["first_line_support"]
+                }
+                for schedule in schedules
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching schedules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching schedules: {str(e)}")
+
+        # Get rules
+        try:
+            rules = db.get_rules()
+        except Exception as e:
+            logger.error(f"Error fetching rules: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
+
+        r = handle_complaint(opper, request.request, employees, schedules, rules)
+        return TextQuerryResponse(
+            request=request.request, 
+            analysis=ScheduleChangeAnalysis(
+                thoughts=r.thoughts,
+                original_query=request.request,
+                changes=[],
+                reason="Reason " + r.user_response + " " + "Solution: " + r.solution_proposal,
+                recommendation="discuss",
+                reasoning=r.reasoning,
+                response = "response-text"
+            )
+        )
 
     elif category == "Other":
         try:
@@ -427,7 +507,7 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
             raise HTTPException(status_code=500, detail=f"Error fetching rules: {str(e)}")
 
         r = handle_other_type_request(opper, request.request, employees, schedules, rules)
-        return ScheduleChangeResponse(
+        return TextQuerryResponse(
             request=request.request, 
             analysis=ScheduleChangeAnalysis(
                 thoughts=r.thoughts,
@@ -440,7 +520,7 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
         )
 
 
-    return ScheduleChangeResponse(
+    return TextQuerryResponse(
         request=request.request, 
         analysis=ScheduleChangeAnalysis(
             thoughts="T " + r.category,
@@ -454,12 +534,12 @@ async def process_text_request(request: SimpleRequest, db: DbHandle, opper: Oppe
 
 
 # Schedule Change Request
-@router.post("/schedule-changes", response_model=ScheduleChangeResponse)
+@router.post("/schedule-changes", response_model=TextQuerryResponse)
 async def process_schedule_change_request(
     request: ScheduleChangeRequest,
     db: DbHandle,
     opper: OpperHandle
-) -> ScheduleChangeResponse:
+) -> TextQuerryResponse:
     """Process a natural language schedule change request."""
     # Get all employees
     try:
@@ -553,7 +633,7 @@ async def process_schedule_change_request(
     except Exception as e:
         logger.error(f"Error applying schedule changes: {str(e)}")
 
-    return ScheduleChangeResponse(
+    return TextQuerryResponse(
         request=request.request_text,
         analysis=analysis
     )
